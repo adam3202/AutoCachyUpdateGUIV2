@@ -2,7 +2,7 @@
 
 A sleek, automated, dark-mode graphical interface for CachyOS system updates. Built with Python and CustomTkinter, this utility automates the terminal-based `cachy-update` process while maintaining 100% strict Arch Linux security compliance.
 
-Designed for both traditional desktop environments and handheld gaming PCs (like the Lenovo Legion Go or Steam Deck) running Steam Game Mode. It acts as a smart virtual keyboard, dynamically injecting your sudo password from a secure memory vault before automatically handling package confirmations, service restarts, and AUR reviews in the background.
+Designed for both traditional desktop environments and handheld gaming PCs (like the Lenovo Legion Go) running Steam Game Mode. It acts as a smart virtual keyboard, dynamically injecting your sudo password from a secure memory vault before automatically handling package confirmations, service restarts, and AUR reviews in the background.
 
 ## ✨ Features
 * **Strict Security Compliance:** Requires NO `visudo` overrides or permanent `NOPASSWD` backdoors. Your password is held temporarily in RAM, dynamically injected into a true Controlling TTY session, and instantly wiped from memory.
