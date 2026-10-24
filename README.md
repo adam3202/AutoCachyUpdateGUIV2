@@ -1,26 +1,25 @@
-# CachyOS GUI Updater (Secure Edition)
+# Game Mode GUI Updater (Secure Edition)
 
-A sleek, automated, dark-mode graphical interface for CachyOS system updates. Built with Python and CustomTkinter, this utility automates the terminal-based `cachy-update` process while maintaining 100% strict Arch Linux security compliance.
+A sleek, gamepad-friendly graphical interface designed specifically to update CachyOS Handheld inside Steam Game Mode—without compromising Arch Linux security standards.
 
-Designed for both traditional desktop environments and handheld gaming PCs (like the Lenovo Legion Go) running Steam Game Mode. It acts as a smart virtual keyboard, dynamically injecting your sudo password from a secure memory vault before automatically handling package confirmations, service restarts, and AUR reviews in the background.
+Traditional desktop package managers (like Shelly or Pamac) often crash Gamescope or freeze completely when asking for a root password via Polkit. This utility bypasses those UI freezes entirely. It acts as a smart virtual keyboard, dynamically injecting your sudo password from a secure memory vault into a true pseudo-terminal, then automatically handles package confirmations and service restarts in the background.
 
-## ✨ Features
-* **Strict Security Compliance:** Requires NO `visudo` overrides or permanent `NOPASSWD` backdoors. Your password is held temporarily in RAM, dynamically injected into a true Controlling TTY session across multiple AUR prompts, and securely wiped upon completion.
+## ✨ Why This Exists (The Handheld Advantage)
+* **Strict Security Compliance:** Requires NO `visudo` overrides or permanent `NOPASSWD` backdoors. Your password is held temporarily in RAM, injected into a Controlling TTY session across multiple AUR prompts, and securely wiped upon completion.
+* **Gamescope Immunity:** Natively strips Steam's 32-bit `LD_PRELOAD` overlay injections and bypasses the Polkit GUI freeze entirely.
 * **Smart Virtual Keyboard:** Automatically answers `[Y/n]` prompts, bypasses Arch News blocks, and hits `0` for service restarts.
-* **AUR Pager Bypass:** Automatically injects `PAGER="cat"` to prevent AUR package reviews from freezing the update process.
-* **Steam Game Mode Immunity:** Natively strips `LD_PRELOAD` from the environment to prevent Steam's 32-bit overlay injection from causing false-positive errors during execution.
-* **Handheld / Gamepad Ready:** Includes built-in hotkeys mapped to standard keyboard inputs (`X` to close, `Y` to toggle terminal) for seamless Steam Input controller integration.
+* **Gamepad Native:** Includes built-in hotkeys mapped to standard controller inputs (`X` to close, `Y` to toggle the hidden terminal output) for a seamless console-like experience.
 
 ## 📦 Prerequisites
-This script requires the `python-customtkinter` UI library. Install it via the AUR:
+This script requires the `python-customtkinter` UI library. Install it via the terminal:
 ```bash
-paru -S python-customtkinter
+sudo pacman -S python-customtkinter
 ```
 
 ## 🚀 Installation & Setup
 
 **1. Download the Script**
-Save the `updater_gui.py` file to your home directory (or any preferred application folder) and grant it executable permissions:
+Save the `updater_gui.py` file to your preferred folder and grant it executable permissions:
 ```bash
 chmod +x ~/updater_gui.py
 ```
@@ -31,24 +30,24 @@ You can now run the app directly from your terminal or create a standard `.deskt
 ./updater_gui.py
 ```
 
-## 🎮 Steam Game Mode Setup (Handhelds)
-To use this updater INSIDE steam gamemode:
+## 🎮 Steam Game Mode Setup 
+To use this natively on a Legion Go, Steam Deck, or HTPC:
 
 1. Open Steam in Desktop Mode.
 2. Click **Games > Add a Non-Steam Game to My Library**.
-3. Click **Browse**, change the file filter to **"All Files"**, and select `updater_gui.py`.
-4. Right-click the new shortcut in your library, select **Properties**, and rename it to "CachyOS Updater (Secure)".
+3. Click **Browse**, select **"All Files"**, and choose `updater_gui.py`.
+4. Right-click the new shortcut in your library, select **Properties**, and rename it to "System Updater (Secure)".
 5. Return to **Game Mode**.
-6. Select the updater, open the **Controller Settings (Gear Icon > Edit Layout)**, and map your gamepad:
+6. Select the updater, open **Controller Settings (Gear Icon > Edit Layout)**, and map your gamepad:
    * Bind your controller's **X Button** to the keyboard **X key** (Closes the app when finished).
-   * Bind your controller's **Y Button** to the keyboard **Y key** (Toggles the hidden terminal output).
-   * *Note: You will need to use the Steam virtual keyboard (STEAM + X) to enter your password when launching the app.*
+   * Bind your controller's **Y Button** to the keyboard **Y key** (Toggles the terminal output).
+   * *Note: You will use the Steam virtual keyboard (STEAM + X) to enter your password when initially launching the app.*
 
 ***
 
 ## 🔍 Source Code Audit
 
-For complete transparency, the full `updater_gui.py` script is provided below. You can verify exactly how the pseudo-terminal (PTY) and `termios.TIOCSCTTY` flags are utilized to vault your password securely in RAM and dynamically handle standard input.
+For complete transparency, the full `updater_gui.py` script is provided below. You can verify exactly how the pseudo-terminal (PTY) and `termios.TIOCSCTTY` flags are utilized to vault your password securely in RAM and wipe it upon completion.
 
 <details>
 <summary><b>Click to expand and view the full Python source code</b></summary>
@@ -75,7 +74,7 @@ class CachyUpdaterApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("CachyOS System Updater")
+        self.title("System Updater")
         self.geometry("650x480")
         self.resizable(False, False)
         self.vault = None
@@ -134,10 +133,144 @@ class CachyUpdaterApp(ctk.CTk):
         clean_text = ANSI_ESCAPE.sub('', text)
         clean_text = SYSTEMD_TAGS.sub('', clean_text)
         clean_text = clean_text.replace('==> Press "enter" to quit', '')
+        clean_text = clean_text.replace('\r', '')
         
         self.console.configure(state="normal")
         self.console.insert("end", clean_text)
         self.console.see("end") 
         self.console.configure(state="disabled")
 
-    def authenticate_
+    def authenticate_and_start(self):
+        """Vaults the password into memory and locks the UI."""
+        password = self.password_entry.get()
+        if not password:
+            self.status_label.configure(text="Please enter your password.", text_color="#e63946")
+            return
+
+        self.vault = password
+        self.password_entry.delete(0, 'end')
+        self.password_entry.configure(state="disabled")
+        self.action_btn.configure(state="disabled", text="Updating...")
+        self.start_update_thread()
+
+    def start_update_thread(self):
+        self.status_label.configure(text="Updating system... Please wait.", text_color="white")
+        self.progress.configure(mode="indeterminate")
+        self.progress.start()
+        
+        self.console.configure(state="normal")
+        self.console.delete("0.0", "end")
+        self.console.configure(state="disabled")
+        self.write_to_console("Initializing update...\n")
+        
+        threading.Thread(target=self.run_update_process, daemon=True).start()
+
+    def run_update_process(self):
+        clean_env = os.environ.copy()
+        clean_env.pop("LD_PRELOAD", None)
+        clean_env["PAGER"] = "cat"
+        
+        master, slave = pty.openpty()
+        
+        def set_ctty():
+            os.setsid()
+            try:
+                fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+            except Exception:
+                pass
+        
+        try:
+            process = subprocess.Popen("cachy-update", shell=True, stdin=slave, stdout=slave, stderr=subprocess.STDOUT, close_fds=True, env=clean_env, preexec_fn=set_ctty)
+            os.close(slave) 
+            
+            error_detected = False
+            terminal_buffer = ""
+            
+            while True:
+                try:
+                    data = os.read(master, 1024).decode('utf-8', errors='replace')
+                    if not data:
+                        break
+                        
+                    clean_logic_data = ANSI_ESCAPE.sub('', data)
+                    clean_logic_data = SYSTEMD_TAGS.sub('', clean_logic_data)
+                    
+                    clean_lower = clean_logic_data.lower()
+                    clean_stripped = clean_logic_data.strip()
+                    
+                    terminal_buffer += clean_lower
+                    if len(terminal_buffer) > 50000:
+                        terminal_buffer = terminal_buffer[-50000:]
+                        
+                    is_real_error = False
+                    if "error has occurred" in clean_lower or "aborted" in clean_lower or "timeout" in clean_lower:
+                        is_real_error = True
+                    if "error:" in clean_lower and "ld.so" not in clean_lower:
+                        is_real_error = True
+                    if "sorry, try again" in clean_lower or "incorrect password" in clean_lower:
+                        is_real_error = True
+                        
+                    if is_real_error:
+                        error_detected = True
+                        
+                    self.after(0, self.write_to_console, data)
+                    
+                    # 1. Watch for any sudo prompt and inject the password from the vault
+                    if "password" in clean_lower and clean_stripped.endswith(":") and self.vault:
+                        os.write(master, (self.vault + "\n").encode())
+                        self.after(0, self.write_to_console, "\n")
+                    
+                    elif "[y/n]" in clean_lower:
+                        os.write(master, b"y\n")
+                        
+                    elif "default=" in clean_lower and clean_stripped.endswith((":", "?", ">")):
+                        os.write(master, b"\n")
+                        
+                    elif "restart them all" in terminal_buffer and clean_stripped.endswith((":", "?", ">")):
+                        os.write(master, b"0\n")
+                        terminal_buffer = "" 
+                        
+                    elif 'press "enter" to proceed' in clean_lower:
+                        os.write(master, b"\n")
+                        
+                    elif 'press "enter" to quit' in clean_lower:
+                        os.write(master, b"\n")
+                        
+                except OSError:
+                    break
+                    
+            process.wait()
+            
+            if process.returncode == 0 and not error_detected:
+                self.after(0, self.finish_update, True)
+            else:
+                self.after(0, self.finish_update, False)
+                
+        except Exception as e:
+            self.after(0, self.write_to_console, f"\n\n[ERROR] {str(e)}\n")
+            self.after(0, self.finish_update, False)
+
+        finally:
+            # Wipe the password from memory ONLY after the entire update is finished
+            self.vault = None
+
+    def finish_update(self, success):
+        self.progress.stop()
+        self.progress.configure(mode="determinate")
+        self.progress.set(1)
+        self.action_btn.configure(text="Close", state="normal", command=self.destroy, fg_color="#4a4a4a", hover_color="#333333")
+        
+        if success:
+            self.status_label.configure(text="System is fully updated! Press X to close.", text_color="#32a852")
+            self.write_to_console("\n\n[SUCCESS] System is fully updated!\n")
+        else:
+            self.status_label.configure(text="Update finished with errors. Check terminal.", text_color="#e63946")
+            self.write_to_console("\n\n[WARNING] Process finished, but errors were detected.\n")
+            if not self.console_visible:
+                self.toggle_terminal()
+
+if __name__ == "__main__":
+    app = CachyUpdaterApp()
+    app.mainloop()
+```
+</details>
